@@ -1,0 +1,12 @@
+#!/bin/bash
+# This script will locate and replace spaces in the filenames
+DIR="."
+# Controlling a loop with bash read command by redirecting
+# a STDIN to while loop
+# find will not truncate filenames containing spaces
+find $DIR -type f | while read file; do
+if [[ "$file" = *[[:space:]]* ]]; then
+  # substitute space with underscore
+  mv "$file" `echo $file | tr ' ' '_'`
+fi
+done

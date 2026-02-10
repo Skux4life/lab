@@ -1,0 +1,4 @@
+#!/bin/bash
+
+OUTPUT_FILE="backup-$(date +%d-%m-%Y).tar.gz"
+tar -czf $OUTPUT_FILE /home/matt

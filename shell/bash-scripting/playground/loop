@@ -1,0 +1,16 @@
+#!/bin/bash
+
+for f in $( ls /var/ ); do
+  echo $f
+done
+
+COUNT=6
+while [ $COUNT -gt 0 ]; do
+  echo Value of count is : $COUNT
+  let COUNT=COUNT-1
+done
+
+until [ $COUNT -gt 5 ]; do
+  echo Value of count is : $COUNT
+  let COUNT=COUNT+1
+done

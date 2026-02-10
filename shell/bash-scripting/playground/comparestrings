@@ -1,0 +1,11 @@
+#!/bin/bash
+
+S1=$1
+S2=$2
+
+if [ $S1 = $S2 ]; then
+  echo "The strings are the same"
+else
+  echo "The strings are not the same"
+fi
+

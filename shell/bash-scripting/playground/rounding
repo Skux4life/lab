@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# get floating point number
+fpn=3.3456
+echo $fpn
+
+# round floating point number with bash
+for bash_rounded_number in $(printf %.2f $fpn); do
+  echo "Rounded with bash:" $bash_rounded_number
+done
+
+rounded_number=$(printf %.0f $fpn)
+echo "Rounded with bash:" $rounded_number
+
+
+# use bash calculator (bc)
+echo "enter input:"
+read user_input
+echo "Result with 2 digits after decimal point:"
+echo "scale=2; $user_input" | bc
+echo "Result with 10 digits after decimal point:"
+echo "scale=10; $user_input" | bc
+echo "Result as rounded integer:"
+echo $user_input | bc
+echo $user_input | bc
