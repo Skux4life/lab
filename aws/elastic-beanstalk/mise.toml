@@ -1,0 +1,5 @@
+[tools]
+kubectl = "latest"
+aws-cli = "latest"
+node = "latest"
+awsebcli = "latest"

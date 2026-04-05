@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# use full binaries path in scripts
+/usr/local/bin/mise trust /workspaces/$DEVPOD_WORKSPACE_ID/mise.toml && /usr/local/bin/mise install

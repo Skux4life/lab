@@ -1,0 +1,11 @@
+{
+  "build": {
+    "context": "..",
+    "dockerfile": "Dockerfile"
+  },
+  "forwardPorts": [3000],
+  "features": {
+    "ghcr.io/itsmechlark/features/postgresql:1": {},
+  },
+  "postCreateCommand": "scripts/setup"
+}
