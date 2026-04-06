@@ -1,0 +1,10 @@
+{
+  "cluster": "ecs-ec2-basicECSCluster",
+  "launchType": "FARGATE",
+  "desiredCount": 1,
+  "enableECSManagedTags": true,
+  "enableExecuteCommand": true,
+  "propagateTags": "SERVICE",
+  "serviceName": "app",
+  "taskDefinition": "app"
+}

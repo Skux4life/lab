@@ -1,0 +1,8 @@
+{
+  "build": {
+    "context": "..",
+    "dockerfile": "Dockerfile"
+  },
+  "forwardPorts": [5000],
+  "postCreateCommand": "scripts/setup"
+}

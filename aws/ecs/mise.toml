@@ -1,0 +1,4 @@
+[tools]
+aws-cli = { version = "latest", symlink_bins = "true" }
+docker-cli = "latest"
+python = "latest"
