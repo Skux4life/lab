@@ -1,5 +1,5 @@
-# FROM python:3.13.0a6-slim-bookworm
-FROM 982383527471.dkr.ecr.us-east-1.amazonaws.com/python:3.13.0a6-slim-bookworm
+# FROM python:3.15.0a7-slim-trixie
+FROM 831411500862.dkr.ecr.us-east-1.amazonaws.com/python:3.15.0a7-slim-trixie
 
 # Added in a later video. 
 # You can omit this if you are building for the first.
@@ -26,7 +26,8 @@ RUN pip3 install -r requirements.txt
 # second period . /app (inside container)
 COPY . .
 
-EXPOSE ${PORT}
+# EXPOSE ${PORT}
+EXPOSE 4567
 
 ENV PYTHONUNBUFFERED=1
 
