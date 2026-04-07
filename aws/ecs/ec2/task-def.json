@@ -1,24 +1,24 @@
 {
   "family": "app",
-  "executionRoleArn": "arn:aws:iam::982383527471:role/EscEc2BasicServiceExecutionRole",
-  "taskRoleArn": "arn:aws:iam::982383527471:role/EcsEc2BasicTaskRole",
+  "executionRoleArn": "arn:aws:iam::831411500862:role/EscEc2BasicServiceExecutionRole",
+  "taskRoleArn": "arn:aws:iam::831411500862:role/EcsEc2BasicTaskRole",
   "networkMode": "bridge",
   "cpu": "256",
   "memory": "512",
-  "requiresCompatibilities": [ 
-    "EC2" 
+  "requiresCompatibilities": [
+    "EC2"
   ],
   "containerDefinitions": [
     {
       "name": "app",
-      "image": "982383527471.dkr.ecr.ca-central-1.amazonaws.com/app",
+      "image": "831411500862.dkr.ecr.us-east-1.amazonaws.com/app:latest",
       "essential": true,
       "portMappings": [
         {
           "name": "app",
           "containerPort": 4567,
           "hostPort": 80,
-          "protocol": "tcp", 
+          "protocol": "tcp",
           "appProtocol": "http"
         }
       ],

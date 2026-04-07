@@ -3,10 +3,18 @@
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
 
 ```sh
-aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended --region ca-central-1
+aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended --region us-east-1
 ```
-
 > Swap the region for your usecase
+
+## Create the roles
+Example for creating the service execution role and attaching policy. The task execution role also is needed.
+
+```sh
+ aws iam put-role-policy --role-name EscEc2BasicServiceExecutionRole --policy-name task-policy --policy-document file://policies/execution-policy.json
+
+ aws iam put-role-policy --role-name EscEc2BasicServiceExecutionRole --policy-name task-policy --policy-document file://policies/execution.json
+```
 
 ## Create Log Group
 
