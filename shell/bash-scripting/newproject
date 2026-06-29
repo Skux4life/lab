@@ -1,0 +1,15 @@
+#!/bin/bash
+
+name="$1"
+
+if [ -z "$name" ]; then
+  echo "Usage: $0 project-name"
+  exit 1
+fi
+
+dir="$HOME/repos/personal/$name"
+
+mkdir -p $dir/{src,tests,docs}
+touch $dir/README.md $dir/.gitignore $dir/src/main.py
+
+echo "Created project: $name"
