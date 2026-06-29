@@ -9,7 +9,7 @@ fi
 
 dir="$HOME/repos/personal/$name"
 
-mkdir -p $dir/{src,tests,docs}
-touch $dir/README.md $dir/.gitignore $dir/src/main.py
+mkdir -p "$dir"/{src,tests,docs}
+touch "$dir"/README.md "$dir"/.gitignore "$dir"/src/main.py
 
 echo "Created project: $name"
