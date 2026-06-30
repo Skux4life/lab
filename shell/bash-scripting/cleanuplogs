@@ -1,0 +1,37 @@
+#!/bin/bash
+
+dir="$1"
+
+if [[ -z $dir ]]; then
+  echo "Usage: $0 <folder>"
+  exit 1
+fi
+
+if [[ ! -d $dir ]]; then
+  echo "$dir is not a valid directory"
+  exit 1
+fi
+
+# find "$dir" -name "*.log" -mtime +"7" -exec rm -v {} +
+
+# streaming pattern with find
+# print0 tells find to seperate each file path with a null byte.
+# as null is forbidden in filenames it is the most reliable delimiter
+# IFS= clears the Internal Field Seperator to stop bash trimming whitespace
+# read -r disables backslash escaping
+# -d '' tells the read command to look for a null byte as the delimiter
+find "$dir" -type f -name "*.log" -mtime +7 -print0 | while IFS= read -r -d '' file; do
+  parent_dir=$(dirname "$file")
+
+  # check if you can modify the directory (write + execute)
+  if [[ ! -w "$parent_dir" ]] || [[ ! -x "$parent_dir" ]]; then
+    echo "Directory permission error: Cannot modify directory $parent_dir" >&2
+    continue
+  fi
+
+  if ! err=$(rm -- "$file" 2>&1); then
+    echo "Failed to delete $file: $err" >&2
+  else
+    echo "Successfully deleted $file"
+  fi
+done
