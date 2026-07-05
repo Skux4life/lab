@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# dotglob for * glob to include hidden entries
+# nullglob no bad literal * if folder empty
+shopt -s dotglob nullglob
+
+# check if there is an argument passed to the script. If not default is $HOME
+if [[ $# == 0 ]]; then
+  base="$HOME"
+else
+  if [[ -d "$1" ]]; then
+    base="$1"
+  else
+    echo "Error: $1 is not a valid directory"
+    exit 1
+  fi
+fi
+
+echo "The parent directory: $base"
+
+# du -h -x -d 1 "$base" 
+
+arr=()
+for item in "$base"/*; do
+  [[ -e "$item" ]] || continue
+  arr+=("$(du -sk "$item")")
+done
+
+printf '%s\n' "${arr[@]}" | 
+  sort -nr -k1,1 | head -n 5 |
+  while IFS=$'\t' read -r kb path; do
+    bytes=$((kb * 1024))
+    printf '%s\t%s\n' "$(numfmt --to=iec --suffix=B "$bytes")" "$path"
+  done
