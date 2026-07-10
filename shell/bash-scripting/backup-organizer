@@ -1,0 +1,79 @@
+#!/bin/bash
+
+echo "BACKUP ORGANIZER"
+
+dry_run=false
+ext_filter=""
+
+function usage {
+  echo "Usage: $0 [--dry-run] [--ext EXT] SOURCE_DIR DEST_DIR"
+  echo "SOURCE_DIR: folder to scan"
+  echo "DEST_DIR: folder to move files into"
+  echo "--dry-run: show changes only"
+  echo "--ext EXT: limit to a certain file extension"
+}
+
+# if no args then print usage
+if [[ $# == 0 ]]; then
+  usage
+  exit 1
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+    ;;
+    --dry-run)
+      dry_run=true
+      shift
+    ;;
+    --ext)
+      if [[ -z "$2" || "$2" == -* ]]; then
+        echo "Error: --type needs a value" >&2
+        exit 2
+      fi
+      ext_filter="$2"
+      shift 2
+    ;;
+    --)
+      shift
+      break
+    ;;
+    -*)
+      echo "Error: unknown flag $1" >&2
+      exit 2
+    ;;
+    *)
+      break
+    ;;
+  esac
+done
+
+source_dir="$1"
+dest_dir="$2"
+
+# Need to validate source and dest dirs
+if [[ ! -d "$source_dir" ]]; then
+  echo "$source_dir is not a valid directory" >&2
+  exit 1
+fi
+
+if [[ ! -r "$source_dir" ]]; then
+  echo "$source_dir cannot be read" >&2
+  exit 1
+fi
+
+if [[ ! -d "$dest_dir" ]]; then
+  echo "$dest_dir is not a valid directory" >&2
+  exit 1
+fi
+
+if [[ ! -w "$dest_dir" || ! -x "$dest_dir" ]]; then
+  echo "Cannot modify: $dest_dir" >&2
+  exit 1
+fi
+
+echo "Backing up from: $source_dir"
+echo "To: $dest_dir"
