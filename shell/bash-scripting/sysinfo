@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# print CPU, RAM, disk, uptime, IP
+
+system=$(uname -s)
+
+if [[ $system == "Darwin" ]]; then
+  echo "CPU model: $(sysctl -n machdep.cpu.brand_string)"
+  echo "RAM: $(sysctl -n hw.memsize | awk '{printf "%.1f GB\n", $1/1024/1024/1024}')"
+else
+  echo "CPU model: $(lscpu | awk -F: '/Model name/ {gsub(/^ /,"",$2); print $2})')"
+  echo "RAM: $(free -h | awk '/Mem:/ {print $2})')"
+fi
+
+echo "Disk"
+df -h /
+
+echo "Uptime"
+uptime | awk -F'up ' '{print $2}' | awk -F',' '{print $1}'
+
+if [[ $system == "Darwin" ]]; then
+  echo "IP"
+  ipconfig getifaddr en0
+else
+  hostname -I | awk '{print $1}'
+fi
