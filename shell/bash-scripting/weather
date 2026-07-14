@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# check for argument
+
+if [[ $# == 0 ]]; then
+  city=""
+else
+  city="$1"
+fi
+
+curl "https://wttr.in/$city?format=4"
