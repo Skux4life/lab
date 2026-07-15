@@ -1,0 +1,28 @@
+#!/bin/bash
+
+root_dir="${1:-$PWD}"
+root_dir=$(realpath "$root_dir")
+
+if [[ ! -d "$root_dir" ]]; then
+  echo "$root_dir is not a valid directory &>2"
+  exit 1
+fi
+
+# starting with one level and using glob
+for dir in "$root_dir"/*; do
+  [ -d "$dir/.git" ] || continue
+
+  repo_name=$(basename "$dir")
+  # git -C dir ... is the same as cd dir && git ...
+  branch=$(git -C "$dir" branch --show-current)
+  # --porcelain means machine friendly output
+  status=$(git -C "$dir" status --porcelain)
+
+  if [[ -n "$status" ]]; then
+    dirty="dirty"
+  else
+    dirty="clean"
+  fi
+
+  printf "%s | %s | %s\n" "$repo_name" "$branch" "$dirty"
+done
