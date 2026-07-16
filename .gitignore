@@ -56,3 +56,7 @@
 **/*.ntvs*
 **/*.njsproj
 **/*.sln
+**/*.swp
+
+# python
+**/*.venv/
