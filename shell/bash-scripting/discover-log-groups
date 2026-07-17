@@ -1,0 +1,66 @@
+#!/bin/bash
+set -euo pipefail
+
+PREFIX=""
+OUTPUT="log-groups.txt"
+REGION="ap-southeast-2"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [--prefix STR] [--output FILE] [--region REGION]
+  --prefix STR    Filter log groups by name prefix
+  --output FILE   File to write log group names to (default: log-groups.txt)
+  --region REGION AWS region (default is ap-southeast-2)
+  -h, --help      Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --prefix)
+      PREFIX="$2"; shift 2 ;;
+    --output) 
+      OUTPUT="$2"; shift 2 ;;
+  --region) 
+      REGION="$2"; shift 2 ;;
+  -h|--help)
+    usage; exit 0 ;;
+  *)
+    echo "Unknown argument: $1" >&2
+    usage
+    exit 1 ;;
+  esac
+done
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "Error: aws CLI not found in PATH" >&2
+  exit 1
+fi
+
+# --- Fetch log groups ---
+declare -a LOG_GROUPS=()
+
+DESCRIBE_ARGS=(logs describe-log-groups --query "logGroups[].logGroupName" --output text)
+[[ -n "$PREFIX" ]] && DESCRIBE_ARGS+=(--log-group-name-prefix "$PREFIX")
+[[ -n "$REGION" ]] && DESCRIBE_ARGS+=(--region "$REGION")
+
+RAW_NAMES="$(aws "${DESCRIBE_ARGS[@]}")" || {
+  echo "Error: failed to describe log groups" >&2
+  exit 1
+}
+
+while IFS=$'\t' read -r -a line; do
+  for name in "${line[@]}"; do
+    [[ -n "$name" ]] && LOG_GROUPS+=("$name")
+  done
+done <<< "$RAW_NAMES"
+
+# --- Output ---
+if [[ ${#LOG_GROUPS[@]} -eq 0 ]]; then
+  echo "Warning: no log groups found matching criteria" >&2
+  : > "$OUTPUT"
+  exit 0
+fi
+
+printf '%s\n' "${LOG_GROUPS[@]}" | sort -u > "$OUTPUT"
+echo "Wrote $(wc -l < "$OUTPUT" | tr -d ' ') log group(s) to $OUTPUT" 

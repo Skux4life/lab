@@ -3,11 +3,17 @@
 root_dir="${1:-$PWD}"
 root_dir=$(realpath "$root_dir")
 
+green='\033[0;32m'
+red='\033[0;31m'
+reset='\033[0m'
+
 if [[ ! -d "$root_dir" ]]; then
   echo "$root_dir is not a valid directory &>2"
   exit 1
 fi
 
+printf "%-20s %-12s %-20s %-8s\n" "repo" "branch" "last commit" "state" 
+echo "--------------------------------------------------------------"
 # starting with one level and using glob
 for dir in "$root_dir"/*; do
   [ -d "$dir/.git" ] || continue
@@ -17,12 +23,13 @@ for dir in "$root_dir"/*; do
   branch=$(git -C "$dir" branch --show-current)
   # --porcelain means machine friendly output
   status=$(git -C "$dir" status --porcelain)
+  last_commit=$(git -C "$dir" log -1 --pretty=%s)
 
   if [[ -n "$status" ]]; then
-    dirty="dirty"
+    state="${red}dirty${reset}"
   else
-    dirty="clean"
+    state="${green}clean${reset}"
   fi
 
-  printf "%s | %s | %s\n" "$repo_name" "$branch" "$dirty"
+  printf "%-20s %-12s %-20s %b\n" "$repo_name" "$branch" "$last_commit" "$state" 
 done

@@ -1,0 +1,110 @@
+#!/bin/bash
+set -euo pipefail
+
+INPUT=""
+PATTERN=""
+MINUTES=60
+OUTPUT="flagged-matches.txt"
+REGION="ap-southeast-2"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") --input FILE --pattern PATTERN [options]
+
+Required:
+  --input FILE        File containing log group names (one per line)
+  --pattern PATTERN   CloudWatch Logs filter pattern to search for
+
+Options:
+  --minutes N         Lookback window in minutes (default: 60)
+  --output FILE       Summary output file (default: flagged-matches.txt)
+  --region REGION     AWS REGION (default: ap-southeast-2)
+  -h, --help          Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --input) INPUT="$2"; shift 2 ;;
+    --pattern) PATTERN="$2"; shift 2 ;;
+    --minutes) MINUTES="$2"; shift 2 ;;
+    --output) OUTPUT="$2"; shift 2 ;;
+    --region) REGION="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; usage exit 1 ;;
+  esac
+done
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "Error: aws CLI not found" >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq not found" >&2
+  exit 1
+fi
+
+if [[ -z "$INPUT" || -z "$PATTERN" ]]; then
+  echo "Error: --input and --pattern are required" >&2
+  usage
+  exit 2
+fi
+
+# -s checks if file exists and is not empty, pretty cool
+if [[ ! -s "$INPUT" ]]; then
+  echo "Error: input file '$INPUT' does not exist or is empty"
+  exit 2
+fi
+
+NOW_S=$(date +%s)
+START_S=$(( NOW_S - MINUTES * 60 ))
+START_MS=$(( START_S * 1000 ))
+
+: > "$OUTPUT"
+
+TOTAL_GROUPS=0
+GROUPS_WITH_MATCHES=0
+TOTAL_MATCHES=0
+
+while IFS= read -r GROUP; do
+  [[ -z "$GROUP" ]] && continue
+  TOTAL_GROUPS=$((TOTAL_GROUPS + 1))
+
+  NEXT_TOKEN=""
+  GROUP_MATCHES=0
+
+  while true; do
+    FILTER_ARGS=(logs filter-log-events
+      --log-group-name "$GROUP"
+      --filter-pattern "$PATTERN"
+      --start-time "$START_MS"
+      --output json)
+    [[ -n "$REGION" ]] && FILTER_ARGS+=(--region "$REGION")
+    [[ -n "$NEXT_TOKEN" ]] && FILTER_ARGS+=(--next-token "$NEXT_TOKEN")
+
+    RESPONSE="$(aws "${FILTER_ARGS[@]}" 2>/tmp/flag-log-patterns.err)" || {
+      echo "Warning: failed to query '$GROUP': $(cat /tmp/flag-log-patterns.err)" >&2
+      break
+    }
+
+    while IFS=$'\t' read -r STREAM TS MSG; do
+      [[ -z "$STREAM" ]] && continue
+      echo "[$GROUP] $STREAM $TS $MSG" >> "$OUTPUT"
+      GROUP_MATCHES=$((GROUP_MATCHES + 1))
+    done < <(echo "$RESPONSE" | jq -r '.events[] | [.logStreamName, .timestamp, .message] | @tsv')
+
+    NEXT_TOKEN="$(echo "$RESPONSE" | jq -r '.nextToken // empty')"
+    [[ -z "$NEXT_TOKEN" ]] && break
+  done
+
+  if [[ $GROUP_MATCHES -gt 0 ]]; then
+    GROUPS_WITH_MATCHES=$((GROUPS_WITH_MATCHES  + 1))
+    TOTAL_MATCHES=$((TOTAL_MATCHES + GROUP_MATCHES))
+  fi
+done < "$INPUT"
+
+rm -f /tmp/flag-log-patterns.err
+
+echo "Scanned $TOTAL_GROUPS log group(s), $GROUPS_WITH_MATCHES with matches, $TOTAL_MATCHES total match(es) written to $OUTPUT"
+
