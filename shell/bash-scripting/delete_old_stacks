@@ -1,0 +1,148 @@
+#!/bin/bash
+set -euo pipefail
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") --cutoff-date YYYY-MM-DD [options]
+
+Delete CloudFormation stacks created before the given cutoff date.
+
+Required:
+  --cutoff-date DATE    Delete stacks created before this date (YYYY-MM-DD)
+
+Options:
+  --execute             Actually delete stacks (default: dry-run, list only)
+  --prefix STRING       Only consider stacks whose name starts with STRING
+  --exclude STRING      Comma-separated list of stack names to skip
+  --region REGION       AWS region (default to \$AWS_REGION or aws config default)
+  -h, --help            Show this help
+
+Examples:
+  $(basename "$0") --cutoff-date 2026-01-01
+  $(basename "$0") --cutoff-date 2026-01-01 --execute --prefix myapp- --exclude myapp-prod,myapp-shared
+EOF
+}
+
+CUTOFF_DATE=""
+EXECUTE=false
+PREFIX=""
+EXCLUDE=""
+REGION="${AWS_REGION:-'ap-southeast-2'}"
+
+to_epoch() {
+  local d="$1"
+  if date -d "$d" +%s >/dev/null 2>&1; then
+    date -d "$d" +%s
+  else
+    date -j -f "%Y-%m-%d" "$d" +%s
+  fi
+}
+
+list_stacks() {
+  local args=(--stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE ROLLBACK_COMPLETE)
+  [[ -n "$REGION" ]] && args+=(--region "$REGION")
+  aws cloudformation list-stacks "${args[@]}" \
+    --query 'StackSummaries[].{Name:StackName,Created:CreationTime,Updated:LastUpdatedTime}' \
+    --output json
+}
+
+is_excluded() {
+  local name="$1"
+  [[ -z "$EXCLUDE" ]] && return 1
+  # using herestring (<<<) to feed a string as stdin to command
+  IFS=',' read -ra EX_ARR <<< "$EXCLUDE"
+  for e in "${EX_ARR[@]}"; do
+    [[ "$name" == "$e" ]] && return 0
+  done
+  return 1
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --cutoff-date)
+      CUTOFF_DATE="$2"; shift 2 ;;
+    --execute)
+      EXECUTE=true; shift ;;
+    --prefix)
+      PREFIX="$2"; shift 2 ;;
+    --exclude)
+      EXCLUDE="$2"; shift 2 ;;
+    --region)
+      REGION="$2"; shift 2 ;;
+    -h|--help)
+      usage; exit 0 ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage; exit 2 ;;
+  esac
+done
+
+if [[ -z "$CUTOFF_DATE" ]]; then
+  echo "Error: --cutoff-date is required" >&2
+  usage
+  exit 2
+fi
+
+# Validate date format
+CUTOFF_EPOCH=$(to_epoch "$CUTOFF_DATE") || { echo "Error: invalid date '$CUTOFF_DATE'" >&2; exit 2; }
+
+# Uses process substitution < <(...)
+# This treats the output or a command/subshell as if it were a file, feed as stdin.
+# This allows the while loop to run in the current shell (not a subshell) and means variable updates are not lost
+candidates=()
+while IFS=$'\t' read -r name created updated; do
+  [[ -n "$PREFIX" && "$name" != "$PREFIX"* ]] && continue
+  is_excluded "$name" && continue
+  timestamp="${updated:-$created}"
+  # ${timestamp%%.*} is to strip the timestamp ms
+  created_epoch=$(to_epoch "${timestamp%%.*}") || continue
+  [[ "$created_epoch" -lt "$CUTOFF_EPOCH" ]] && candidates+=("$name|$created")
+done < <(list_stacks | jq -r '.[] | "\(.Name)\t\(.Created)"')
+
+if [[ ${#candidates[@]} -eq 0 ]]; then
+  echo "No stacks found older than $CUTOFF_DATE"
+  exit 0
+fi
+
+echo "Stacks eligible for deletion (created before $CUTOFF_DATE):"
+printf '%-40s %s\n' "STACK NAME" "CREATED/UPDATED"
+for c in "${candidates[@]}"; do
+  IFS='|' read -r name created updated <<< "$c"
+  timestamp=${updated:-$created}
+  printf '%-40s %s\n' "$name" "$timestamp" 
+done
+
+if [[ "$EXECUTE" != true ]]; then
+  echo
+  echo "Dry-run mode. Re-run with --execute to delete these stacks."
+  exit 0
+fi
+
+echo
+read -rp "Delete ${#candidates[@]} stack(s) listed above? Type 'yes' to confirm: " confirm
+[[ "$confirm" != "yes" ]] && { echo "Aborted."; exit 1; }
+
+fail_list=()
+for c in "${candidates[@]}"; do
+  IFS='|' read -r name created updated <<< "$c"
+  echo "Deleting $name ..."
+  del_args=(--stack-name "$name")
+  [[ -n "$REGION" ]] && del_args+=(--region "$REGION")
+
+  aws cloudformation delete-stack "${del_args[@]}"
+  wait_args=(--stack-name "$name")
+  [[ -n "$REGION" ]] && wait_args+=(--region "$REGION")
+  
+  if aws cloudformation wait stack-delete-complete "${wait_args[@]}"; then
+    echo "   Deleted: $name"
+  else
+    echo "   FAILED: $name (check DELETE_FAILED reason)"
+    fail_list+=("$name")
+  fi
+done
+
+echo
+echo "Summary: $(( ${#candidates[@]} - ${#fail_list[@]} )) deleted, ${#fail_list[@]} failed."
+if [[ ${#fail_list[@]} -gt 0 ]]; then
+  printf 'Failed: %s\n' "${fail_list[@]}"
+fi
