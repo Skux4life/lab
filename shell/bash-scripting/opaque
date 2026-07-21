@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Will update the opacity value in alacritty config to arg that is provided
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") arg1 [value between 0 and 1 - 1 will mean not see through]
+EOF
+}
+
+if [[ $# == 0 ]]; then
+ usage 
+ exit 2
+fi
+
+if [[ ! "$(echo "$1 >= 0 && $1 <= 1" | bc)" ]]; then
+  echo "$1 is not between 0 and 1" >&2
+  exit 2
+fi
+# VAL="$1": shell env var VAL gets your arg
+# perl: run Perl
+# -0: read whole file as one string
+# -p: loop over file, print result
+# -i: edit file in place
+# -e '...': Perl code inline
+VAL="$1" perl -0pi  -e '
+  s/^(\[window\].*?^opacity\s*=\s*).*$/${1}$ENV{VAL}/ms
+' "$HOME/.config/alacritty/alacritty.toml"
