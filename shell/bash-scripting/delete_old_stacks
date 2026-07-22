@@ -23,6 +23,16 @@ Examples:
 EOF
 }
 
+if ! command -v aws >/dev/null 2>&1; then
+  echo "Error: aws CLI not found in PATH" >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq not found in PATH" >&2
+  exit 1
+fi
+
 CUTOFF_DATE=""
 EXECUTE=false
 PREFIX=""
