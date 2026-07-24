@@ -1,0 +1,119 @@
+#!/bin/bash
+set -euo pipefail
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") --last YYYY-MM-DD [options]
+
+Delete iam roles last used before the given date.
+
+Required:
+  --last DATE       Delete iam roles last used before this date (YYYY-MM-DD)
+
+Options:
+  --execute             Actually delete roles (default: dry-run, list only)
+  --prefix STRING       Only consider roles whose name starts with STRING
+  --exclude STRING      Comma-separated list of role names to skip
+  --region REGION       AWS region (default to \$AWS_REGION or aws config default)
+  -h, --help            Show this help
+
+Examples:
+  $(basename "$0") --last 2026-01-01
+  $(basename "$0") --last 2026-01-01 --execute --prefix myrole- --exclude myrole-prod
+EOF
+}
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "Error: aws CLI not found in PATH" >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq not found in PATH" >&2
+  exit 1
+fi
+
+to_epoch() {
+  # this function will try use gnu date (linux) and then bsd date (mac) if fails
+  local d="$1"
+  if date -d "$d" +%s >/dev/null 2>&1; then
+    date -d "$d" +%s
+  else
+    date -j -f "%Y-%m-%d" "$d" +%s
+  fi
+}
+
+list_roles() {
+  local args=(--filter Role)
+  [[ -n "$REGION" ]] && args+=(--region "$REGION")
+  aws iam get-account-authorization-details "${args[@]}" \
+    --query "RoleDetailList[?
+      contains(RoleName, '$PREFIX') && 
+      !contains(RoleName, 'admin') && 
+      (RoleLastUsed.LastUsedDate < '$LAST' || RoleLastUsed.LastUsedDate == \`null\`)
+      ].RoleName" \
+    --output text | tr '\t' '\n'
+}
+
+is_excluded() {
+  local name="$1"
+  [[ -z "$EXCLUDE" ]] && return 1
+  # using herestring (<<<) to feed a string as stdin to command
+  read -ra EX_ARR <<< "$EXCLUDE"
+  for e in "${EX_ARR[@]}"; do
+    [[ "$name" == "$e" ]] && return 0
+  done
+  return 1
+}
+
+LAST=""
+EXECUTE=false
+PREFIX=""
+EXCLUDE=""
+REGION="${AWS_REGION:-'ap-southeast-2'}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --last)
+      LAST="$2"; shift 2 ;;
+    --execute)
+      EXECUTE=true; shift ;;
+    --prefix)
+      PREFIX="$2"; shift 2 ;;
+    --exclude)
+      EXCLUDE="$2"; shift 2 ;;
+    --region)
+      REGION="$2"; shift 2 ;;
+    -h|--help)
+      usage; exit 0 ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage; exit 2 ;;
+  esac
+done
+
+if [[ -z "$LAST" ]]; then
+  echo "Error: --last is required" >&2
+  usage
+  exit 2
+fi
+
+# Validate date format (don't think epoch is needed)
+CUTOFF_EPOCH=$(to_epoch "$LAST") || { echo "Error: invalid date '$LAST" >&2; exit 2; }
+
+candidates=()
+while read -r role; do
+  is_excluded "$role" && continue
+  candidates+=("$role")
+done < <(list_roles)
+
+if [[ ${#candidates[@]} -eq 0 ]]; then
+  echo "No iam roles found older than $LAST"
+  exit 0
+fi
+
+printf '%s\n' "Role"
+for c in "${candidates[@]}"; do
+  echo "$c"
+done
+echo "${#candidates[@]}Roles eligible for deletion (created before $LAST):"
