@@ -1,11 +1,20 @@
 #!/bin/bash
 
+BASE_URL="https://wttr.in"
+
 # check for argument
 
 if [[ $# == 0 ]]; then
   city=""
+elif [[ "$1" == "full" ]]; then
+  full=true
 else
   city="$1"
 fi
 
-curl "https://wttr.in/$city?format=4"
+if [[ "$full" == true ]]; then
+  curl "$BASE_URL"
+  exit 0
+fi
+
+curl "$BASE_URL/$city?format=4"

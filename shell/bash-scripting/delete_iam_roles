@@ -116,4 +116,15 @@ printf '%s\n' "Role"
 for c in "${candidates[@]}"; do
   echo "$c"
 done
-echo "${#candidates[@]}Roles eligible for deletion (created before $LAST):"
+echo "${#candidates[@]} Roles eligible for deletion (created before $LAST):"
+
+if [[ "$EXECUTE" != true ]]; then
+  echo
+  echo "Dry-run mode. Re-run with --execute to delete these stacks."
+  exit 0
+fi
+
+echo
+read -rp "Delete ${#candidates[@]} role(s) listed above? Type 'yes' to confirm: " confirm
+[[ "$confirm" != "yes" ]] && { echo "Aborted."; exit 1; }
+echo "deleting..."
