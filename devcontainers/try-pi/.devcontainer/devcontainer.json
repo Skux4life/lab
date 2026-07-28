@@ -1,0 +1,22 @@
+{
+  "name": "pi-coding-agent",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // The base image ships a non-root "node" user (uid/gid 1000) already.
+  "remoteUser": "node",
+
+  // Keeps pi's logins/sessions/settings (~/.pi/agent) around across
+  // container rebuilds, instead of losing them every time the image rebuilds.
+  "mounts": [
+    "source=pi-agent-home,target=/home/node/.pi/agent,type=volume"
+  ],
+
+  // Pass an API key in from the host if you've set one there (optional —
+  // you can also just run `pi` and use /login for a subscription instead).
+  "containerEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+  },
+
+  "postCreateCommand": "pi --version",
+}
