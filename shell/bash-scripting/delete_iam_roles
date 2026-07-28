@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 usage() {
@@ -70,7 +70,7 @@ LAST=""
 EXECUTE=false
 PREFIX=""
 EXCLUDE=""
-REGION="${AWS_REGION:-'ap-southeast-2'}"
+REGION="${AWS_REGION:-ap-southeast-2}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -98,8 +98,8 @@ if [[ -z "$LAST" ]]; then
   exit 2
 fi
 
-# Validate date format (don't think epoch is needed)
-CUTOFF_EPOCH=$(to_epoch "$LAST") || { echo "Error: invalid date '$LAST" >&2; exit 2; }
+# Validate date format
+to_epoch "$LAST" >/dev/null || { echo "Error: invalid date $LAST" >&2; exit 2; }
 
 candidates=()
 while read -r role; do
@@ -128,3 +128,59 @@ echo
 read -rp "Delete ${#candidates[@]} role(s) listed above? Type 'yes' to confirm: " confirm
 [[ "$confirm" != "yes" ]] && { echo "Aborted."; exit 1; }
 echo "deleting..."
+
+fail_list=()
+for c in "${candidates[@]}"; do
+  echo "Deleting $c ..."
+  del_args=(--role-name "$c")
+  [[ -n "$REGION" ]] && del_args+=(--region "$REGION")
+
+  # gather any attached policies
+  declare -a policyarns=()
+  while IFS= read -r line; do
+    policyarns+=("$line")
+  done < <(
+    aws iam list-attached-role-policies "${del_args[@]}" \
+    --query 'AttachedPolicies[].PolicyArn' \
+    --output text | tr '\t' '\n'
+  )
+
+  # remove any managed policies from role
+  for policy_arn in "${policyarns[@]}"; do
+    aws iam detach-role-policy "${del_args[@]}" \
+      --policy-arn "$policy_arn"
+  done
+
+  # gather any inline policies
+  declare -a policynames=()
+  while IFS= read -r line; do
+    policynames+=("$line")
+  done < <(
+    aws iam list-role-policies "${del_args[@]}" \
+      --query 'PolicyNames[]' \
+      --output text | tr '\t' '\n'
+  )
+
+  # remove any inline policies from role
+  for policy_name in "${policynames[@]}"; do
+    aws iam delete-role-policy "${del_args[@]}" \
+      --policy-name "$policy_name" 
+  done
+
+  # additional consideration 
+  # remove role from EC2 instance profiles (not necessary for my current use)
+
+  # delete iam role
+  if aws iam delete-role "${del_args[@]}"; then
+    echo "   Deleted: $c"
+  else
+    echo "   FAILED to delete: $c (check DELETE_FAILED reason)"
+    fail_list+=("$c")
+  fi
+done
+
+echo
+echo "Summary: $(( ${#candidates[@]} - ${#fail_list[@]} )) deleted, ${#fail_list[@]} failed."
+if [[ ${#fail_list[@]} -gt 0 ]]; then
+  printf 'Failed: %s\n' "${fail_list[@]}"
+fi
