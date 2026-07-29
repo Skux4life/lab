@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+# This script is designed as a unix filter.
+# It is designed to toggle comments so is useful in vim/nvim using filter through command feature (!)
+
+prefix="${1:-#}"
+
+while IFS= read -r line; do
+  #  =~ is regex match
+  # the regex splits into 2 capture groups
+  # leading spaces/tabs ([[:space:]]*)
+  # rest of the line (.*)
+  # If match succeeds, bash fills BASH_REMATCH
+  # BASH_REMATCH[0] = full match
+  # BASH_REMATCH[1] = first capture group
+  # BASH_REMATCH[2] = second capture group
+  if [[ "$line" =~ ^([[:space:]]*)(.*)$ ]]; then
+    indent="${BASH_REMATCH[1]}"
+    rest="${BASH_REMATCH[2]}"
+
+    case "$rest" in
+      "$prefix "*) printf '%s%s\n' "$indent" "${rest#"$prefix "}" ;;
+      "$prefix"*) printf '%s%s\n' "$indent" "${rest#"$prefix"}" ;;
+      *) printf '%s%s%s\n' "$indent" "$prefix " "$rest" ;;
+    esac
+  else
+    printf '%s\n' "$line"
+  fi
+done
