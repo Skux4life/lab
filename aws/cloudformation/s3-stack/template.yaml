@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Secure, Compliant S3 Storage Stack with KMS & Lifecycle Policies.'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment stage name used for naming and retention policies.
+
+  BucketPrefix:
+    Type: String
+    Default: skux4life-secure-data
+    Description: Base name for the S3 bucket (account ID and region will be appended for uniqueness).
+
+Resources:
+  # --- Customer Managed Key (CMK) for Fine-Grained Key Management ---
+  KMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub Dedicated KMS Key for ${EnvironmentName} S3 storage encryption
+      EnableKeyRotation: true # Best Practice: Always enable automatic key rotation
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnableIAMUserPermissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: 'kms:*'
+            Resource: '*'
+
+  KMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${EnvironmentName}-s3-storage-key
+      TargetKeyId: !Ref KMSKey
+
+  # --- Secure S3 Bucket ---
+  SecureS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain # Best Practice: Protect critical data from stack deletion tear-downs
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub ${BucketPrefix}-${AWS::AccountId}-${AWS::Region}-${EnvironmentName}
+
+      # 1. Enforce Server-Side Encryption (SSE-KMS with S3 Bucket Keys enabled)
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'aws:kms'
+              KMSMasterKeyID: !GetAtt KMSKey.Arn
+            BucketKeyEnabled: true # Reduces KMS API costs by up to 99% for high-throughput buckets
+
+      # 2. Block Public Access Settings Out-of-the-Box
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+      # 3. Enable Versioning to Protect Against Accidental Overwrites/Deletions
+      VersioningConfiguration:
+        Status: Enabled
+
+      # 4. Lifecycle Policies for Storage Tiering & Temporary Log Expiration
+      LifecycleConfiguration:
+        Rules:
+          # Rule A: Move old non-current versions to Glacier and eventually clean up
+          - Id: TransitionAndExpireNonCurrentVersions
+            Status: Enabled
+            NoncurrentVersionTransitions:
+              - StorageClass: GLACIER
+                TransitionInDays: 30
+            NoncurrentVersionExpiration:
+              NewerNoncurrentVersions: 5 # Keeps the 5 newest historical versions indefinitely
+              NoncurrentDays: 365 # Deletes older versions after 1 year
+
+          # Rule B: Expire temporary log files inside the 'logs/' prefix automatically
+          - Id: ExpireTemporaryLogs
+            Status: Enabled
+            Prefix: logs/
+            ExpirationInDays: 90
+
+          # Rule C: Abort incomplete multipart uploads to avoid hidden S3 costs
+          - Id: AbortIncompleteMultipartUploadsRule
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+
+  # --- Bucket Policy: Transport Security Enforcement ---
+  SecureBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SecureS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Enforce In-Transit Encryption (SSL/TLS Only)
+          - Sid: EnforceTLSRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt SecureS3Bucket.Arn
+              - !Sub ${SecureS3Bucket.Arn}/*
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+
+Outputs:
+  BucketName:
+    Description: The physical bucket name
+    Value: !Ref SecureS3Bucket
+    Export:
+      Name: !Sub ${EnvironmentName}-SECURE-BUCKET-NAME
+
+  BucketArn:
+    Description: The Amazon Resource Name (ARN) of the bucket
+    Value: !GetAtt SecureS3Bucket.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-SECURE-BUCKET-ARN
+
+  KMSKeyArn:
+    Description: The ARN of the customer-managed KMS key
+    Value: !GetAtt KMSKey.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-STORAGE-KMS-KEY-ARN
