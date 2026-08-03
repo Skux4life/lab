@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+cat <<'EOF'
+Usage:
+  aws-profile <name>          # validate and print name
+  aws-profile --list          # interactive picker
+  aws-profile --current       # interactive picker
+EOF
+}
+
+list_profiles() {
+ echo "list not yet implemented"
+ echo "dev"
+}
+
+current_profile() {
+  echo "current not yet implemented"
+}
+
+
+if ! command -v aws-sso >/dev/null 2>&1; then
+  echo "Error: aws-sso not found in PATH" >&2
+  exit 1
+fi
+
+if [[ $# == 0 ]]; then
+  usage
+  exit 2
+fi
+
+case "$1" in
+  --list) list_profiles
+    exit 0
+  ;;
+  --current) current_profile
+    exit 0
+  ;;
+  *) 
+    # grep note
+    # -F fixed string (no regex)
+    # -x match whole line only
+    # -q quiet
+    # -- end of options ($1 can't be treated as a flag)
+    if list_profiles | grep -Fxq -- "$1"; then
+      printf '%s\n' "$1"
+    else
+      echo "aws-profile: unknown profile: $1" >&2
+      exit 1
+    fi
+  ;;
+esac
+
+# aws-sso-profile rest-workload-dev:DeveloperDeployPolicy
