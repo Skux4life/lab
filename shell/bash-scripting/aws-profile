@@ -12,8 +12,14 @@ EOF
 }
 
 list_profiles() {
- echo "list not yet implemented"
- echo "dev"
+  printf '%s\t%s\n' "dev" "rest-workload-dev"
+  printf '%s\t%s\n' "api-dev" "rest-workload-api-dev"
+  printf '%s\t%s\n' "nonprod" "rest-workload-nonprod"
+  printf '%s\t%s\n' "cat4r" "rest-workload-api-cat4r"
+}
+
+profile_names() {
+  list_profiles | awk -F'\t' '{print $1}'
 }
 
 current_profile() {
@@ -44,7 +50,7 @@ case "$1" in
     # -x match whole line only
     # -q quiet
     # -- end of options ($1 can't be treated as a flag)
-    if list_profiles | grep -Fxq -- "$1"; then
+    if profile_names | grep -Fxq -- "$1"; then
       printf '%s\n' "$1"
     else
       echo "aws-profile: unknown profile: $1" >&2
