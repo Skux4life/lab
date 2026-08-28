@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# using /usr/bin/env as bash version on mac is old as
+
+# check working directory is git dir
+CUR_DIR=$(pwd)
+echo "Current Directory: $CUR_DIR"
+
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "Inside a Git working tree"
+else
+  echo "NOT inside a Git working tree"
+  exit 1
+fi
+
+echo "Local branches"
+git branch -l
+
+read -r -p "Enter a branch prefix for removal: " prefix
+echo "$prefix"
+
+current=$(git branch --show-current)
+
+while IFS= read -r branch; do
+  case "$branch" in
+    "$current"|main|master) continue ;;
+  esac
+
+  read -r -p "Delete branch $branch [y/N]: " answer </dev/tty
+  answer=${answer:-N}
+
+  # case-insensitive check
+  if [[ "${answer,,}" == "y" ]]; then
+    git branch -d "$branch"
+  fi
+done < <(
+  git for-each-ref \
+    --format='%(refname:short)' \
+    "refs/heads/$prefix"
+  )
+
+# expect a prefix or pattern (want to be able to use feat*)
