@@ -13,15 +13,21 @@ provider "aws" {
   region = "ap-southeast-2"
 }
 
+data "external" "db_password" {
+  program = ["sh", "-c", "echo '{\"password\":\"'\"$DB_PASSWORD\"'\"}'"]
+}
+
 # Customer 1: CATO Corporation
 module "cato" {
   source = "./modules/infra"
 
-  customer_name           = "cato"
-  location                = "ap-southeast-2"
-  vpc_cidr                = "10.1.0.0/16"
-  ssh_public_key          = file("~/.ssh/mercury.pub")
-  postgres_admin_password = "CatoP@ssw0rd123!"
+  customer_name  = "cato"
+  region         = "ap-southeast-2"
+  ssh_public_key = file("~/.ssh/mercury.pub")
+  vpc_cidr       = "10.0.0.0/16"
+  subnet_cidr    = "10.0.1.0/24"
+  subnet_cidr_db = "10.0.2.0/24"
+  db_password    = data.external.db_password.result.password
 }
 
 # Customer 2: Cicero Ltd

@@ -10,11 +10,23 @@ resource "aws_vpc" "customer" {
 
 resource "aws_subnet" "customer" {
   vpc_id                  = aws_vpc.customer.id
-  cidr_block              = var.vpc_cidr # is this correct though?
-  map_public_ip_on_launch = true         # instances in this subnet get a public ip by default
+  cidr_block              = var.subnet_cidr
+  map_public_ip_on_launch = true # instances in this subnet get a public ip by default
+  availability_zone       = "${var.region}a"
 
   tags = {
     Name = "subnet-${var.customer_name}"
+  }
+}
+
+# need another subnet for RDS in different AZ, even if single AZ instance
+resource "aws_subnet" "customer_db" {
+  vpc_id            = aws_vpc.customer.id
+  cidr_block        = var.subnet_cidr_db
+  availability_zone = "${var.region}b"
+
+  tags = {
+    Name = "subnet-${var.customer_name}-db"
   }
 }
 
@@ -113,5 +125,60 @@ resource "aws_eip" "customer" {
 
   tags = {
     Name = "eip-${var.customer_name}"
+  }
+}
+
+# RDS
+resource "aws_db_subnet_group" "customer" {
+  name       = "${var.customer_name}-db-subnet-group"
+  subnet_ids = [aws_subnet.customer.id, aws_subnet.customer_db.id]
+
+  tags = {
+    Name = "${var.customer_name}-db-subnet-group"
+  }
+}
+
+resource "aws_security_group" "customer_db" {
+  name        = "${var.customer_name}-db-sg"
+  description = "Allow postgres inbound"
+  vpc_id      = aws_vpc.customer.id
+
+  ingress {
+    description     = "postgres from vm"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.customer.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.customer_name}-db-sg"
+  }
+}
+
+resource "aws_db_instance" "customer" {
+  identifier             = "${var.customer_name}-pg"
+  engine                 = "postgres"
+  engine_version         = "16"
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 20
+  max_allocated_storage  = 100
+  db_name                = var.db_name
+  username               = var.db_username
+  password               = var.db_password
+  db_subnet_group_name   = aws_db_subnet_group.customer.name
+  vpc_security_group_ids = [aws_security_group.customer_db.id]
+  skip_final_snapshot    = true
+  publicly_accessible    = false
+
+  tags = {
+    Name = "db-${var.customer_name}"
   }
 }

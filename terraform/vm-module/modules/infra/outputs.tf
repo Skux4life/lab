@@ -5,7 +5,7 @@ output "vm_public_ip" {
 
 output "postgres_fqdn" {
   description = "FQDN of the PostgresSQL server"
-  value       = "TBC"
+  value       = aws_db_instance.customer.endpoint
 }
 
 output "ssh_connection" {

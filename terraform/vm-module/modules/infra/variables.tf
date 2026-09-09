@@ -3,7 +3,7 @@ variable "customer_name" {
   type        = string
 }
 
-variable "location" {
+variable "region" {
   description = "AWS region for resources"
   type        = string
   default     = "ap-southeast-2"
@@ -11,6 +11,16 @@ variable "location" {
 
 variable "vpc_cidr" {
   description = "CIDR block for the customer's vpc"
+  type        = string
+}
+
+variable "subnet_cidr" {
+  description = "CIDR block for the VM subnet"
+  type        = string
+}
+
+variable "subnet_cidr_db" {
+  description = "CIDR block for the other subnet needed for db"
   type        = string
 }
 
@@ -25,7 +35,17 @@ variable "ssh_public_key" {
   type        = string
 }
 
-variable "postgres_admin_password" {
+variable "db_name" {
+  type    = string
+  default = "app"
+}
+
+variable "db_username" {
+  type    = string
+  default = "pgadmin"
+}
+
+variable "db_password" {
   description = "Admin password for PostgreSQL"
   type        = string
   sensitive   = true
