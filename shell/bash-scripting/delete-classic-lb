@@ -1,0 +1,59 @@
+#!/bin/bash
+
+if [[ $# == 0 ]]; then
+  echo "Please provide the load balancer name to delete"
+  exit 1
+fi
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "Error: aws cli not found in PATH" >&2
+  exit 1
+fi
+
+LB_NAME="$1"
+
+echo "Checking $LB_NAME exists..."
+if output=$(aws elb describe-load-balancers --load-balancer-names "$LB_NAME" 2>&1); then
+  echo "Found"
+else
+  status=$?
+  echo "AWS error $output"
+  exit "$status"
+fi
+
+echo "Checking $LB_NAME has no target instances..."
+
+if ! instance_count=$(
+  aws elb describe-load-balancers \
+    --load-balancer-names "$LB_NAME" \
+    --query "length(LoadBalancerDescriptions[0].Instances)"
+); then
+  echo "Failed to query load balancer" >&2
+  exit 1
+fi
+
+if [[ "$instance_count" -gt 0 ]]; then
+  echo "Load balancer has $instance_count attached instance(s)" >&2
+  exit 1
+fi
+
+echo "Confirmed no instances attached to $LB_NAME"
+
+printf "WARNING: Do you want to permanently delete load balancer:\n"
+printf "  Name: %s\n" "$LB_NAME"
+
+read -r -p "Type DELETE to continue: " confirmation
+
+if [[ "$confirmation" != "DELETE" ]]; then
+  echo "Deletion cancelled."
+  exit 0
+fi
+
+echo "Deleting $LB_NAME..."
+if ! aws elb delete-load-balancer \
+  --load-balancer-name "$LB_NAME"; then
+  echo "Failed to delete load balancer $LB_NAME" >&2
+  exit 1
+fi
+
+echo "Successfully deleted $LB_NAME"

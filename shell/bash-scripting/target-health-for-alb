@@ -1,0 +1,30 @@
+#!/bin/bash
+
+if [[ $# == 0 ]]; then
+  echo "Please provide the load balancer name to check"
+  exit 1
+fi
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "Error: aws cli not found in PATH" >&2
+  exit 1
+fi
+
+LB_NAME="$1"
+
+ALB_ARN=$(aws elbv2 describe-load-balancers \
+  --names "$LB_NAME" \
+  --query 'LoadBalancers[0].LoadBalancerArn' \
+  --output text)
+
+aws elbv2 describe-target-groups \
+  --load-balancer-arn "$ALB_ARN" \
+  --query 'TargetGroups[].TargetGroupArn' \
+  --output text |
+  while read -r TARGET_GROUP_ARN; do
+    echo "Target group: $TARGET_GROUP_ARN"
+    aws elbv2 describe-target-health \
+      --target-group-arn "$TARGET_GROUP_ARN" \
+      --query 'TargetHealthDescriptions[].{Target:Target.Id,Port:Target.Port,State:TargetHealth.State,Reason:TargetHealth.Reason}' \
+      --output table
+  done
