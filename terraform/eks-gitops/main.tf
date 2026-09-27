@@ -311,6 +311,7 @@ provider "flux" {
   git = {
     url = "ssh://git@github.com/Skux4life/mercury-gitops.git"
     ssh = {
+      username    = "git"
       private_key = file("~/.ssh/mercury")
     }
   }
@@ -319,7 +320,7 @@ provider "flux" {
 # Bootstrap Flux onto the EKS Cluster
 resource "flux_bootstrap_git" "main" {
   namespace  = "flux-system"
-  path       = "./clusters/staging"
+  path       = "."
   depends_on = [aws_eks_node_group.default]
 }
 

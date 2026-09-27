@@ -1,4 +1,6 @@
 [tools]
 aws-cli = { version = "latest", symlink_bins = "true" }
+flux2 = "latest"
+gh = "latest"
 kubectl = "latest"
 terraform = "latest"
