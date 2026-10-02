@@ -1,0 +1,84 @@
+#!/bin/bash
+set -euo pipefail
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "Error: aws cli not found in PATH" >&2
+  exit 1
+fi
+
+if ! command -v fzf >/dev/null 2>&1; then
+  echo "Error: fzf not found in PATH" >&2
+  exit 1
+fi
+
+if ! aws sts get-caller-identity >/dev/null 2>&1; then
+  echo "AWS credentials are missing or invalid" >&2
+  exit 1
+fi
+
+usage() {
+  cat <<'EOF'
+Usage: check-code-pipeline [--last N]
+
+Options:
+  --last N    Show the last N pipeline runs (default: 1)
+  --help      Show this help message
+EOF
+}
+
+last=1
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+  --last)
+    if [[ "$#" -lt 2 ]]; then
+      echo "Error: --last requires a value" >&2
+      usage
+      exit 2
+    fi
+
+    if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+      echo "Error: --last must be a positive integer" >&2
+      usage
+      exit 2
+    fi
+
+    last="$2"
+    shift 2
+    ;;
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "Error: unknown argument: $1" >&2
+    usage
+    exit 2
+    ;;
+  esac
+done
+
+echo "Showing last $last run(s)"
+
+pipeline=$(
+  aws codepipeline list-pipelines \
+    --query 'pipelines[].name' \
+    --output text |
+    tr '\t' '\n' |
+    sort |
+    fzf --prompt="Select pipeline: "
+)
+
+# If no selection or escape hit
+if [[ -z "${pipeline:-}" ]]; then
+  echo "No pipeline selected"
+  exit 1
+fi
+
+echo "Selected: $pipeline"
+
+aws codepipeline list-pipeline-executions \
+  --pipeline-name "$pipeline" \
+  --max-items "$last" \
+  --query "pipelineExecutionSummaries[].{id:pipelineExecutionId,startTime:startTime,lastUpdateTime:lastUpdateTime,status:status,summary:sourceRevisions[0].revisionSummary}" \
+  --output json
