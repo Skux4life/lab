@@ -18,15 +18,18 @@ fi
 
 usage() {
   cat <<'EOF'
-Usage: check-code-pipeline [--last N]
+Usage: check-code-pipeline [--last N --pipeline CODEPIPELINE_NAME]
 
 Options:
-  --last N    Show the last N pipeline runs (default: 1)
-  --help      Show this help message
+  --last N                      Show the last N pipeline runs (default: 1)
+  --pipeline CODEPIPELINE_NAME  Specify the codepipeline to check
+  --help                        Show this help message
 EOF
 }
 
 last=1
+pipeline=""
+export AWS_REGION="${AWS_REGION:=ap-southeast-2}"
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
@@ -46,6 +49,16 @@ while [[ "$#" -gt 0 ]]; do
     last="$2"
     shift 2
     ;;
+  --pipeline)
+    if [[ "$#" -lt 2 ]]; then
+      echo "Error: --pipeline requires a value" >&2
+      usage
+      exit 2
+    fi
+
+    pipeline="$2"
+    shift 2
+    ;;
   --help | -h)
     usage
     exit 0
@@ -60,19 +73,21 @@ done
 
 echo "Showing last $last run(s)"
 
-pipeline=$(
-  aws codepipeline list-pipelines \
-    --query 'pipelines[].name' \
-    --output text |
-    tr '\t' '\n' |
-    sort |
-    fzf --prompt="Select pipeline: "
-)
+if [[ -z "$pipeline" ]]; then
+  pipeline=$(
+    aws codepipeline list-pipelines \
+      --query 'pipelines[].name' \
+      --output text |
+      tr '\t' '\n' |
+      sort |
+      fzf --prompt="Select pipeline: "
+  )
 
-# If no selection or escape hit
-if [[ -z "${pipeline:-}" ]]; then
-  echo "No pipeline selected"
-  exit 1
+  # If no selection or escape hit
+  if [[ -z "${pipeline:-}" ]]; then
+    echo "No pipeline selected"
+    exit 1
+  fi
 fi
 
 echo "Selected: $pipeline"
