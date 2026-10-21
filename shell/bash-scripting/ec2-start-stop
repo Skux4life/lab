@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euo pipefail
+
+if [[ $# == 0 ]]; then
+  echo "Please provide the ec2 instance name to start/stop"
+  exit 1
+fi
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "Error: aws cli not found in PATH" >&2
+  exit 1
+fi
+
+EC2_NAME="$1"
+
+ids=$(
+  aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=*$EC2_NAME*" \
+    --query "Reservations[].Instances[].[InstanceId, Tags[?Key=='Name']|[0].Value]" \
+    --output text
+)
+
+if [[ -z "$ids" ]]; then
+  echo "No instance found with Name like $EC2_NAME" >&2
+  exit 1
+fi
+
+while IFS=$'\t' read -r id name; do
+  echo "checking state for $id"
+  state=$(
+    aws ec2 describe-instances \
+      --instance-ids "$id" \
+      --query "Reservations[].Instances[].State.Name" \
+      --output text
+  )
+
+  if [[ "running" == "$state" ]]; then
+    echo "Instance $name id: $id is running"
+    read -r -p "Do you want to stop it? (y/n) " -n 1 ans </dev/tty
+    echo
+    if [[ "$ans" =~ ^[Yy]$ ]]; then
+      echo "Proceeding"
+      aws ec2 stop-instances \
+        --instance-ids "$id" --dry-run # remove dry-run flag for actual use
+    else
+      echo "Not stopping"
+    fi
+  elif [[ "stopped" == "$state" ]]; then
+    echo "Instance $name id: $id is stopped"
+    read -r -p "Do you want to start it? (y/n) " -n 1 ans </dev/tty
+    echo
+    if [[ "$ans" =~ ^[Yy]$ ]]; then
+      echo "Proceeding"
+      aws ec2 start-instances \
+        --instance-ids "$id" --dry-run # remove dry-run flag for actual use
+    else
+      echo "Not starting"
+    fi
+  else
+    echo "Instance $id state $state is not running or stopped. It will be skipped."
+  fi
+done <<<"$ids"

@@ -37,7 +37,7 @@ CUTOFF_DATE=""
 EXECUTE=false
 PREFIX=""
 EXCLUDE=""
-REGION="${AWS_REGION:-'ap-southeast-2'}"
+REGION="${AWS_REGION:-ap-southeast-2}"
 
 to_epoch() {
   local d="$1"
@@ -60,7 +60,7 @@ is_excluded() {
   local name="$1"
   [[ -z "$EXCLUDE" ]] && return 1
   # using herestring (<<<) to feed a string as stdin to command
-  IFS=',' read -ra EX_ARR <<< "$EXCLUDE"
+  IFS=',' read -ra EX_ARR <<<"$EXCLUDE"
   for e in "${EX_ARR[@]}"; do
     [[ "$name" == "$e" ]] && return 0
   done
@@ -69,21 +69,35 @@ is_excluded() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --cutoff-date)
-      CUTOFF_DATE="$2"; shift 2 ;;
-    --execute)
-      EXECUTE=true; shift ;;
-    --prefix)
-      PREFIX="$2"; shift 2 ;;
-    --exclude)
-      EXCLUDE="$2"; shift 2 ;;
-    --region)
-      REGION="$2"; shift 2 ;;
-    -h|--help)
-      usage; exit 0 ;;
-    *)
-      echo "Unknown option: $1" >&2
-      usage; exit 2 ;;
+  --cutoff-date)
+    CUTOFF_DATE="$2"
+    shift 2
+    ;;
+  --execute)
+    EXECUTE=true
+    shift
+    ;;
+  --prefix)
+    PREFIX="$2"
+    shift 2
+    ;;
+  --exclude)
+    EXCLUDE="$2"
+    shift 2
+    ;;
+  --region)
+    REGION="$2"
+    shift 2
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "Unknown option: $1" >&2
+    usage
+    exit 2
+    ;;
   esac
 done
 
@@ -94,7 +108,10 @@ if [[ -z "$CUTOFF_DATE" ]]; then
 fi
 
 # Validate date format
-CUTOFF_EPOCH=$(to_epoch "$CUTOFF_DATE") || { echo "Error: invalid date '$CUTOFF_DATE'" >&2; exit 2; }
+CUTOFF_EPOCH=$(to_epoch "$CUTOFF_DATE") || {
+  echo "Error: invalid date '$CUTOFF_DATE'" >&2
+  exit 2
+}
 
 # Uses process substitution < <(...)
 # This treats the output or a command/subshell as if it were a file, feed as stdin.
@@ -117,9 +134,9 @@ fi
 echo "Stacks eligible for deletion (created before $CUTOFF_DATE):"
 printf '%-40s %s\n' "STACK NAME" "CREATED/UPDATED"
 for c in "${candidates[@]}"; do
-  IFS='|' read -r name created updated <<< "$c"
+  IFS='|' read -r name created updated <<<"$c"
   timestamp=${updated:-$created}
-  printf '%-40s %s\n' "$name" "$timestamp" 
+  printf '%-40s %s\n' "$name" "$timestamp"
 done
 
 if [[ "$EXECUTE" != true ]]; then
@@ -130,11 +147,14 @@ fi
 
 echo
 read -rp "Delete ${#candidates[@]} stack(s) listed above? Type 'yes' to confirm: " confirm
-[[ "$confirm" != "yes" ]] && { echo "Aborted."; exit 1; }
+[[ "$confirm" != "yes" ]] && {
+  echo "Aborted."
+  exit 1
+}
 
 fail_list=()
 for c in "${candidates[@]}"; do
-  IFS='|' read -r name created updated <<< "$c"
+  IFS='|' read -r name created updated <<<"$c"
   echo "Deleting $name ..."
   del_args=(--stack-name "$name")
   [[ -n "$REGION" ]] && del_args+=(--region "$REGION")
@@ -142,7 +162,7 @@ for c in "${candidates[@]}"; do
   aws cloudformation delete-stack "${del_args[@]}"
   wait_args=(--stack-name "$name")
   [[ -n "$REGION" ]] && wait_args+=(--region "$REGION")
-  
+
   if aws cloudformation wait stack-delete-complete "${wait_args[@]}"; then
     echo "   Deleted: $name"
   else
@@ -152,7 +172,7 @@ for c in "${candidates[@]}"; do
 done
 
 echo
-echo "Summary: $(( ${#candidates[@]} - ${#fail_list[@]} )) deleted, ${#fail_list[@]} failed."
+echo "Summary: $((${#candidates[@]} - ${#fail_list[@]})) deleted, ${#fail_list[@]} failed."
 if [[ ${#fail_list[@]} -gt 0 ]]; then
   printf 'Failed: %s\n' "${fail_list[@]}"
 fi
