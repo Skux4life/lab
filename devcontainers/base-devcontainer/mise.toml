@@ -1,2 +1,4 @@
 [tools]
+node = "24"
+"npm:@earendil-works/pi-coding-agent" = "latest"
 kubectl = "latest"
