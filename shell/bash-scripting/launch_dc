@@ -1,0 +1,53 @@
+#!/bin/bash
+set -euo pipefail
+
+WORK_REPOS_PATH="$HOME/repos/work"
+PERSONAL_REPOS_PATH="$HOME/repos/personal"
+DEVCONTAINER_PATH="$HOME/repos/personal/lab/devcontainers/base-devcontainer"
+CONTAINER_NAME="base-devcontainer"
+
+if ! command -v fzf >/dev/null 2>&1; then
+  echo "Error: fzf not found in PATH" >&2
+  exit 1
+fi
+
+usage() {
+  cat <<'EOF'
+  TODO
+EOF
+}
+
+REPO_NAME=""
+
+if [[ ! -d "$WORK_REPOS_PATH" ]]; then
+  echo "$WORK_REPOS_PATH doesn't exist, exiting"
+  exit 1
+fi
+
+cd "$WORK_REPOS_PATH"
+if [[ -z "$REPO_NAME" ]]; then
+  REPO_NAME=$(
+    find . -maxdepth 1 -type d ! -name "." |
+      fzf --prompt="Select repo: "
+  )
+
+  # If no selection or escape hit
+  if [[ -z "${REPO_NAME:-}" ]]; then
+    echo "No repo selected"
+    exit 1
+  fi
+fi
+
+REPO_PATH="$WORK_REPOS_PATH/$REPO_NAME"
+echo "Selected $REPO_NAME"
+echo "Launching devcontainer"
+
+devsy workspace up "$DEVCONTAINER_PATH" \
+  --ide none \
+  --dotfiles "https://github.com/Skux4life/dotfiles" \
+  --mount type=bind,source="$REPO_PATH",target=/workspaces/"$REPO_NAME" \
+  --recreate
+
+echo "Devcontainer launched"
+echo "connecting to devcontainer"
+ssh -t "${CONTAINER_NAME}.devsy"

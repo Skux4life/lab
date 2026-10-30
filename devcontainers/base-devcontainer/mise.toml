@@ -3,3 +3,6 @@ node = "24"
 "npm:@earendil-works/pi-coding-agent" = "latest"
 kubectl = "latest"
 acli = "latest"
+uv = "latest"
+"github:clawscli/claws" = "latest"
+aws-cli = { version = "latest", symlink_bins = "true" }

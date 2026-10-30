@@ -3,5 +3,13 @@
     "context": "..",
     "dockerfile": "Dockerfile"
   },
-  "postCreateCommand": "scripts/setup"
+  "postCreateCommand": "scripts/setup",
+  "mounts": [
+    "source=${localEnv:HOME}/.aws-agent,target=/home/vscode/.aws-agent,type=bind,readonly"
+  ],
+  "containerEnv": {
+    "AWS_SHARED_CREDENTIALS_FILE": "/home/vscode/.aws-agent/credentials",
+    "AWS_CONFIG_FILE": "/home/vscode/.aws-agent/config",
+    "AWS_REGION": "ap-southeast-2"
+  }
 }
